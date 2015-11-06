@@ -11,7 +11,7 @@ Note: the script reads whole file into the memory. Therefore be careful with siz
 At the end script prints out the number of files with search string found.
 
 ## Installation
-Download remove_text.php to any location on your computer and run it according to Usage section.
+Download `remove_text.php` to any location on your computer and run it according to Usage section.
 
 You need php-cli installed to run this script.
 
