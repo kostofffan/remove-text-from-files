@@ -14,7 +14,7 @@
  * ```
  * php remove_text.php
  *      --dir=DIRECTORY_PATH
- *      --search=STRING | --searchFile=FILE_PATH
+ *      --search=STRING | --searchFile=FILE_PATH | --pattern=PATTERN_FOR_SEARCH
  *      [--extensions=COMMA_SEPARATED_EXTENSIONS]
  *      [--size=SIZE_THRESHOLD]
  * ```
@@ -24,6 +24,8 @@
  * `search` - string to search. May be omitted if searchFile is set
  *
  * `searchFile` - path the file containing search text
+ *
+ * `pattern` - regular expression to use instead of `search` params
  *
  * `extensions` - (optional) list of allowed extensions separated with comma (without spaces)
  *
@@ -64,6 +66,12 @@ class TextRemover
      * @var string
      */
     private $search;
+    
+    /**
+     * Regular expression for search
+     * @var string
+     */
+    private $pattern;
 
     /**
      * Counter for processed files
@@ -74,14 +82,16 @@ class TextRemover
     /**
      * Constructor
      *
-     * @param string       $search String to remove
-     * @param string       $dir    Directory to search the string in
-     * @param array        $ext    List of allowed extensions
-     * @param integer|null $size   Size threshold
+     * @param string       $search  String to remove
+     * @param string       $pattern Regular expression for search
+     * @param string       $dir     Directory to search the string in
+     * @param array        $ext     List of allowed extensions
+     * @param integer|null $size    Size threshold
      */
-    public function __construct($search, $dir, $ext = array(), $size = null)
+    public function __construct($search, $pattern, $dir, $ext = array(), $size = null)
     {
         $this->search = trim($search);
+        $this->pattern = $pattern;
         $this->dir = rtrim($dir, '/\\') . '/';
         $this->allowedExtensions = $ext;
         if (is_null($size)) {
@@ -128,19 +138,28 @@ class TextRemover
                     print "File $dir$file is bigger than threshold set ({$this->sizeThreshold} bytes)\n";
                     continue;
                 }
-                if (!is_readable($dir . $file) or !is_writeable($dir . $file)) {
-                    print "Can't read/write file $dir$file\n";
-                    continue;
-                }
 
                 $extension = pathinfo($file, PATHINFO_EXTENSION);
                 if (empty($this->allowedExtensions) or in_array($extension, $this->allowedExtensions)) {
+                    if (!is_readable($dir . $file) or !is_writeable($dir . $file)) {
+                        print "Can't read/write file $dir$file\n";
+                        continue;
+                    }
                     $contents = file_get_contents($dir . $file);
-                    if (strpos($contents, $this->search) !== false) {
-                        $contents = str_replace($this->search, '', $contents);
-                        file_put_contents($dir . $file, $contents);
-                        $this->counter++;
+                    if (is_null($this->pattern)) {
+                        if (strpos($contents, $this->search) !== false) {
+                            $contents = str_replace($this->search, '', $contents);
+                            file_put_contents($dir . $file, $contents);
+                            $this->counter++;
+                        } else {
+                        }
                     } else {
+                        if (preg_match('/' . $this->pattern . '/Uim', $contents, $match)) {
+                            $contents = str_replace($match[0], '', $contents);
+                            file_put_contents($dir . $file, $contents);
+                            $this->counter++;
+                        } else {
+                        }
                     }
 
                 }
@@ -177,7 +196,12 @@ if (isset($_ARG['search'])) {
     $search = file_get_contents($_ARG['searchFile']);
 }
 
-if (!$search) {
+$pattern = null;
+if (isset($_ARG['pattern'])) {
+    $pattern = $_ARG['pattern'];
+}
+
+if (!$search and !$pattern) {
     die("Specify search\n");
 }
 
@@ -191,7 +215,7 @@ if (isset($_ARG['extensions'])) {
 
 
 
-$tr = new TextRemover($search, $dir, $ext, $size);
+$tr = new TextRemover($search, $pattern, $dir, $ext, $size);
 $c = $tr->run();
 
 print "Text was removed from $c files\n\n";
